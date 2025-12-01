@@ -1,0 +1,14 @@
+# Node backend
+backend/node_modules
+backend/.env
+backend/uploads
+
+# FastAPI inside backend/ml-api
+backend/ml-api/__pycache__
+backend/ml-api/.env
+backend/ml-api/model_cache
+backend/ml-api/images
+
+# React frontend
+frontend/node_modules
+frontend/dist

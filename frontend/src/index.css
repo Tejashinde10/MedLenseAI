@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Medical Theme - Soft Blues & Clean Whites */
+    --background: 210 50% 98%;
+    --foreground: 215 25% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 20%;
+
+    --primary: 210 70% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 60% 96%;
+    --secondary-foreground: 215 25% 20%;
+
+    --muted: 210 50% 95%;
+    --muted-foreground: 215 15% 50%;
+
+    --accent: 210 80% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 30% 88%;
+    --input: 210 30% 88%;
+    --ring: 210 70% 55%;
+
+    --radius: 0.75rem;
+
+    /* Medical UI specific colors */
+    --medical-blue: 210 70% 55%;
+    --medical-blue-light: 210 60% 96%;
+    --medical-blue-dark: 210 80% 45%;
+    --medical-accent: 190 70% 50%;
+  }
+
+  .dark {
+    --background: 215 30% 12%;
+    --foreground: 210 40% 95%;
+
+    --card: 215 30% 15%;
+    --card-foreground: 210 40% 95%;
+
+    --popover: 215 30% 15%;
+    --popover-foreground: 210 40% 95%;
+
+    --primary: 210 70% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 30% 20%;
+    --secondary-foreground: 210 40% 95%;
+
+    --muted: 215 30% 20%;
+    --muted-foreground: 215 15% 65%;
+
+    --accent: 210 80% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 30% 25%;
+    --input: 215 30% 25%;
+    --ring: 210 70% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
