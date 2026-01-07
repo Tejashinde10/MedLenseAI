@@ -1,14 +1,18 @@
-# Node backend
-backend/node_modules
-backend/.env
-backend/uploads
+# Python
+.venv/
+__pycache__/
+*.pyc
 
-# FastAPI inside backend/ml-api
-backend/ml-api/__pycache__
-backend/ml-api/.env
-backend/ml-api/model_cache
-backend/ml-api/images
+# Node
+node_modules/
 
-# React frontend
-frontend/node_modules
-frontend/dist
+# ML / binaries
+*.zip
+*.pt
+*.pth
+*.dll
+
+# OS junk
+.DS_Store
+Thumbs.db
+.env
