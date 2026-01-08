@@ -43,25 +43,25 @@ const UploadReport = () => {
     const formData = new FormData();
     formData.append("file", selectedFile);
 
-    const token = localStorage.getItem("token"); // ✅ ADDED
+    const token = localStorage.getItem("token");
 
     try {
-      // *** FastAPI Processing ***
+      // ✅ FastAPI upload (OCR + AI)
       const response = await axios.post(
-        "http://localhost:5000/upload",
+        `${import.meta.env.VITE_FASTAPI_URL}/upload`,
         formData,
         {
-          headers: { "Content-Type": "multipart/form-data" },
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         }
       );
 
       setResults(response.data);
 
-      // *** Save to History in Node.js BackEnd ***
-      // *** Save to History in Node.js BackEnd ***
-      // *** Save to History in Node.js BackEnd ***
+      // ✅ Save history (Node backend)
       await axios.post(
-        "http://localhost:8000/save-history",
+        `${import.meta.env.VITE_API_BASE_URL}/save-history`,
         {
           image: preview,
           explanation: response.data.explanation,
@@ -71,7 +71,7 @@ const UploadReport = () => {
         },
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -108,7 +108,6 @@ const UploadReport = () => {
           <Card className="bg-card/80 backdrop-blur-sm border-2">
             <CardContent className="p-8">
               <div className="flex flex-col items-center gap-6">
-                {/* Upload Area */}
                 <div className="w-full max-w-md">
                   <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-primary rounded-2xl cursor-pointer hover:bg-secondary/50 transition-colors bg-secondary/20">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -129,7 +128,6 @@ const UploadReport = () => {
                   </label>
                 </div>
 
-                {/* Preview */}
                 {preview && (
                   <div className="w-full max-w-md">
                     <p className="text-sm font-medium text-foreground mb-3">
@@ -148,7 +146,6 @@ const UploadReport = () => {
                   </div>
                 )}
 
-                {/* Upload Button */}
                 <Button
                   onClick={handleUpload}
                   disabled={!selectedFile || loading}
@@ -172,7 +169,6 @@ const UploadReport = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Image Preview */}
             <Card className="bg-card/80 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -189,7 +185,6 @@ const UploadReport = () => {
               </CardContent>
             </Card>
 
-            {/* Results */}
             <div className="space-y-6">
               <Card className="bg-card/80 backdrop-blur-sm">
                 <CardHeader>
@@ -200,7 +195,7 @@ const UploadReport = () => {
                     <h3 className="font-semibold text-lg mb-2 text-primary">
                       Explanation:
                     </h3>
-                    <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                    <p className="text-foreground whitespace-pre-wrap">
                       {results.explanation}
                     </p>
                   </div>
@@ -211,38 +206,13 @@ const UploadReport = () => {
                         <AlertCircle className="h-5 w-5" />
                         Precautions:
                       </h3>
-                      <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                      <p className="text-foreground whitespace-pre-wrap">
                         {results.precautions}
                       </p>
                     </div>
                   )}
                 </CardContent>
               </Card>
-
-              {results.ocr_text && (
-                <Card className="bg-card/80 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle>Extracted Text (OCR)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground font-mono whitespace-pre-wrap">
-                      {results.ocr_text}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Button
-                onClick={() => {
-                  setSelectedFile(null);
-                  setPreview("");
-                  setResults(null);
-                }}
-                variant="outline"
-                className="w-full"
-              >
-                Upload Another Report
-              </Button>
             </div>
           </div>
         )}
