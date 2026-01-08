@@ -1,55 +1,38 @@
-# app.py — FastAPI backend using BLIP + Tesseract + Google Gemini
+# app.py — FastAPI backend using Tesseract + Gemini Vision (Render-safe)
+
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from io import BytesIO
-import uvicorn
-import torch
 import pytesseract
-from transformers import BlipProcessor, BlipForConditionalGeneration
 import re
-import google.generativeai as genai
 import os
 from pydantic import BaseModel
+import uvicorn
 
+# ✅ NEW Gemini SDK (not deprecated)
+from google import genai
 
 # ---------------- Gemini Configuration ----------------
-# Make sure you've set GOOGLE_API_KEY in your system:
-#   setx GOOGLE_API_KEY "your_api_key_here"
-api_key = os.environ.get("GOOGLE_API_KEY")
-if not api_key:
-    raise RuntimeError("❌ GOOGLE_API_KEY not found. Run: setx GOOGLE_API_KEY 'your_key_here'")
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    raise RuntimeError("❌ GOOGLE_API_KEY not found in environment variables")
 
-genai.configure(api_key=api_key)
-gemini_model = genai.GenerativeModel("models/gemini-2.5-flash")
-
-print("✅ Gemini model loaded successfully")
-
-# ---------------- Caption Model (BLIP) ----------------
-MODEL_NAME = "Salesforce/blip-image-captioning-base"
-print("Loading BLIP caption model...")
-processor = BlipProcessor.from_pretrained(MODEL_NAME)
-model = BlipForConditionalGeneration.from_pretrained(MODEL_NAME)
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model.to(device)
-print("✅ BLIP loaded on", device)
+client = genai.Client(api_key=GOOGLE_API_KEY)
+print("✅ Gemini client initialized")
 
 # ---------------- Tesseract ----------------
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# Only set path on Windows (Render/Linux already has it)
+if os.name == "nt":
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ---------------- FastAPI ----------------
-app = FastAPI(title="MedLense AI - Medical Explainer (Gemini Powered)")
+app = FastAPI(title="MedLense AI - Medical Explainer (Gemini Vision)")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-    "http://localhost:5173",
-    "http://localhost:8080",
-    "http://localhost:3000",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:5173",
-],
-
+    allow_origins=["*"],  # tighten later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,111 +40,98 @@ app.add_middleware(
 
 # ---------------- Helper Functions ----------------
 def clean_ocr_text(raw: str, max_len: int = 2000) -> str:
-    """Clean OCR artifacts and limit text length"""
     if not raw:
         return ""
     s = raw.replace("\r", "\n")
     s = re.sub(r'[_\-\=]{3,}', ' ', s)
-    s = re.sub(r'\b(?:[A-Za-z]\s+){5,}\b', ' ', s)
     s = re.sub(r'\n{2,}', '\n', s)
     s = s.replace('ﬁ', 'fi').replace('ﬂ', 'fl')
-    s = s.strip()
-    return s[:max_len]
+    return s.strip()[:max_len]
+
 
 def build_prompt(caption: str, ocr_text: str) -> str:
-    """Generate very friendly and patient-focused medical explanations."""
     return f"""
-You are a kind, friendly doctor explaining a report to your patient in *very simple and caring language*.
+You are a kind, friendly doctor explaining a medical report to a patient in very simple language.
 
-💡 STYLE RULES:
-- Always start with “Hi [patient name]!” if the name is available.
-- Talk in a warm, reassuring tone like you are personally explaining their health.
-- Keep sentences short and easy to understand.
-- Do NOT sound like a report, record, or summary — sound like a conversation.
-- Don’t mention dates, years, or complex medical terms unless they help the patient understand.
-- Focus on what the patient *feels*, what happened, and what to do next.
-- Always end with helpful and caring advice.
+Write your answer in Markdown with EXACTLY two sections:
 
-📋 Your response must always have exactly two parts:
+Explanation:
+Explain what the report means in simple, reassuring words.
 
-**Explanation:**  
-Explain what this report means in kind, simple words.  
-Example:  
-“Hi Ellen! You got a vaccine that protects you from cough, tetanus, and throat infections. It’s normal if your arm was a little sore afterward. You had your gallbladder surgery and a C-section a few years ago, and also had a small ankle injury once — nothing serious. You’re now using an inhaler for asthma, which helps you breathe better.”  
+Precautions:
+1. Give 2–3 short care tips.
 
-**Precautions:**  
-Give 2–3 short, clear care tips based on the context (like “keep your inhaler with you” or “drink more water”).  
-Always format them as a numbered list.  
-
-Now write your output in this friendly style and Markdown format.
-
-IMAGE CAPTION:
+IMAGE DESCRIPTION:
 {caption}
 
 EXTRACTED TEXT:
 {ocr_text}
-
-Write only:
-Explanation: ...
-**Precautions:**  
-1. ...
-2. ...
 """.strip()
 
-# ---------------- Main Endpoint ----------------
+
+# ---------------- Upload Endpoint ----------------
 @app.post("/upload")
 async def analyze_image(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
 
-    contents = await file.read()
-    image = Image.open(BytesIO(contents)).convert("RGB")
+    image_bytes = await file.read()
+    image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-    # Step 1: OCR
+    # 🔍 OCR
     ocr_text = pytesseract.image_to_string(image)
     ocr_text = clean_ocr_text(ocr_text)
 
-    # Step 2: Caption generation
-    inputs = processor(images=image, return_tensors="pt").to(device)
-    out = model.generate(**inputs, max_new_tokens=40)
-    caption = processor.decode(out[0], skip_special_tokens=True)
-
-    # Step 3: Simplified explanation with Gemini
-    prompt = build_prompt(caption, ocr_text)
-
+    # 🧠 Gemini Vision (caption + understanding)
     try:
-        response = gemini_model.generate_content(prompt)
-        explanation = response.text.strip()
+        vision_response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[
+                "Describe this medical image clearly and simply for a patient.",
+                image_bytes,
+            ],
+        )
+        caption = vision_response.text.strip()
     except Exception as e:
-        explanation = f"⚠️ Gemini explanation failed: {e}"
+        caption = f"Vision analysis failed: {e}"
 
-    return JSONResponse(content={
-        "caption": caption,
-        "extracted_text": ocr_text,
-        "explanation": explanation
-    })
+    # 🩺 Gemini Explanation
+    try:
+        prompt = build_prompt(caption, ocr_text)
+        explanation_response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt,
+        )
+        explanation = explanation_response.text.strip()
+    except Exception as e:
+        explanation = f"Explanation failed: {e}"
+
+    return JSONResponse(
+        content={
+            "caption": caption,
+            "ocr_text": ocr_text,
+            "explanation": explanation,
+        }
+    )
+
 
 # ---------------- Chat Endpoint ----------------
 class ChatRequest(BaseModel):
     message: str
 
+
 @app.post("/chat")
 async def chat_with_ai(req: ChatRequest):
-    """Simple free-form chatbot using Gemini"""
     try:
-        prompt = f"""
-You are MedLense AI, a medical chatbot.
-Give short, correct, simple answers.
-User message: {req.message}
-"""
-        response = gemini_model.generate_content(prompt)
-        ai_reply = response.text.strip()
-
-        return {"reply": ai_reply}
-
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=f"You are MedLense AI. Answer simply:\n{req.message}",
+        )
+        return {"reply": response.text.strip()}
     except Exception as e:
-        return {"reply": f"⚠️ AI Error: {str(e)}"}
+        return {"reply": f"⚠️ AI Error: {e}"}
 
 
+# ---------------- Run ----------------
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="127.0.0.1", port=5000, log_level="info")
+    uvicorn.run("app:app", host="0.0.0.0", port=10000)
