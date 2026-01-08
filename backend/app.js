@@ -24,7 +24,7 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: "*",
+    origin: "https://medlense.netlify.app/",
     credentials: true,
   })
 );
