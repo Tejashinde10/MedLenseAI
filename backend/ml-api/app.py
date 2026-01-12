@@ -12,7 +12,8 @@ from pydantic import BaseModel
 import uvicorn
 
 # ✅ NEW Gemini SDK (not deprecated)
-from google import genai
+import google.genai as genai
+
 
 # ---------------- Gemini Configuration ----------------
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
