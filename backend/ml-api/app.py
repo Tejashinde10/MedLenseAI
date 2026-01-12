@@ -11,8 +11,7 @@ import os
 from pydantic import BaseModel
 import uvicorn
 
-# ✅ NEW Gemini SDK (not deprecated)
-from google.ai import generativeai as genai
+
 
 
 
