@@ -16,8 +16,10 @@ const Signup = () => {
     }
 
     try {
-      // FIXED ROUTE: must be lowercase "register"
-      const res = await api.post("/api/auth/register", { email, password });
+      const res = await api.post("/api/auth/register", {
+        email,
+        password,
+      });
 
       // Save token + user
       login(res.data.token, res.data.user);
@@ -25,8 +27,14 @@ const Signup = () => {
       // Redirect after signup
       navigate("/dashboard");
     } catch (err) {
-      console.error(err);
-      alert("Signup failed. User may already exist.");
+      console.error("Signup error:", err);
+
+      const message =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Signup failed. Please try again.";
+
+      alert(message);
     }
   };
 
