@@ -1,0 +1,18 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# ML / binaries
+*.zip
+*.pt
+*.pth
+*.dll
+
+# OS junk
+.DS_Store
+Thumbs.db
+.env
