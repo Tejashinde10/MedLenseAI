@@ -20,11 +20,14 @@ const HistoryPage = () => {
       try {
         const token = localStorage.getItem("token");
 
-        const response = await axios.get("http://localhost:8000/history/me", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/save-history`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         if (!cancelled) setHistory(response.data || []);
       } catch (error) {

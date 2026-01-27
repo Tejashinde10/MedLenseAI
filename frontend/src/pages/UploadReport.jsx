@@ -49,6 +49,7 @@ const UploadReport = () => {
       // ✅ FastAPI upload (OCR + AI)
       const response = await axios.post(
         `${import.meta.env.VITE_FASTAPI_URL}/upload`,
+
         formData,
         {
           headers: {
@@ -65,7 +66,6 @@ const UploadReport = () => {
         {
           image: preview,
           explanation: response.data.explanation,
-          precautions: response.data.precautions,
           ocr_text: response.data.ocr_text,
           caption: response.data.caption,
         },
