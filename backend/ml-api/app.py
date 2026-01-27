@@ -1,4 +1,4 @@
-# app.py — FastAPI backend using Tesseract + Gemini (stable SDK)
+# app.py — FastAPI backend (Render-safe, Netlify-safe)
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
@@ -12,111 +12,115 @@ import re
 import uvicorn
 import google.generativeai as genai
 
-
-# ---------------- Gemini Configuration ----------------
+# ---------------- Gemini ----------------
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
-    raise RuntimeError("❌ GOOGLE_API_KEY missing in Render environment")
+    raise RuntimeError("❌ GOOGLE_API_KEY missing in environment")
 
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+gemini = genai.GenerativeModel("gemini-1.5-flash")
+print("✅ Gemini initialized")
 
-print("✅ Gemini loaded")
-
-
-# ---------------- Tesseract ----------------
-if os.name == "nt":
-    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-
-
-# ---------------- Server ----------------
-app = FastAPI()
+# ---------------- FastAPI ----------------
+app = FastAPI(title="MedLense AI")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://medlense.netlify.app",
-        "http://localhost:5173",],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://medlense.netlify.app",
+    ],
     allow_origin_regex=r"https://.*\.netlify\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ---------------- Tesseract ----------------
+if os.name == "nt":
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ---------------- Helpers ----------------
-def clean_text(raw):
-    if not raw:
+def clean_text(text: str, limit: int = 2000) -> str:
+    if not text:
         return ""
-    s = raw.replace("\r", "\n")
-    s = re.sub(r'\n{2,}', '\n', s)
-    return s.strip()[:2000]
+    text = text.replace("\r", "\n")
+    text = re.sub(r"\n{2,}", "\n", text)
+    return text.strip()[:limit]
 
 
-def build_prompt(caption, ocr_text):
+def build_prompt(caption: str, ocr: str) -> str:
     return f"""
-Explain this medical report to a patient.
+You are a friendly doctor explaining a medical report to a patient.
 
-Caption:
+Explanation:
+Explain in simple, kind language.
+
+Precautions:
+Give 2–3 short care tips.
+
+IMAGE DESCRIPTION:
 {caption}
 
-OCR:
-{ocr_text}
+OCR TEXT:
+{ocr}
+""".strip()
 
-Write:
-Explanation:
-Precautions:
-"""
-
-
-# ---------------- Image Upload ----------------
+# ---------------- Upload ----------------
 @app.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(400, "File must be an image")
+async def upload(file: UploadFile = File(...)):
+    data = await file.read()
 
-    img_bytes = await file.read()
-    image = Image.open(BytesIO(img_bytes)).convert("RGB")
+    # ---- IMAGE ----
+    if file.content_type.startswith("image/"):
+        image = Image.open(BytesIO(data)).convert("RGB")
+        ocr_text = clean_text(pytesseract.image_to_string(image))
 
-    # OCR
-    text = clean_text(pytesseract.image_to_string(image))
+        try:
+            vision = gemini.generate_content(
+                [
+                    "Describe this medical image simply for a patient.",
+                    data,
+                ]
+            )
+            caption = vision.text.strip()
+        except Exception as e:
+            caption = f"Vision failed: {e}"
 
-    # Caption (simple Gemini vision call)
+    # ---- PDF (SAFE FALLBACK) ----
+    elif file.content_type == "application/pdf":
+        caption = "Medical PDF uploaded"
+        ocr_text = "PDF text extraction not enabled yet."
+
+    else:
+        raise HTTPException(400, "Unsupported file type")
+
+    # ---- Explanation ----
     try:
-        vision = model.generate_content(
-            ["Describe this image clearly.", img_bytes]
-        )
-        caption = vision.text.strip()
-    except Exception as e:
-        caption = f"Caption failed: {e}"
-
-    # Explanation
-    try:
-        explanation = model.generate_content(
-            build_prompt(caption, text)
+        explanation = gemini.generate_content(
+            build_prompt(caption, ocr_text)
         ).text.strip()
     except Exception as e:
-        explanation = f"Explanation failed: {e}"
+        explanation = f"AI explanation failed: {e}"
 
     return JSONResponse({
         "caption": caption,
-        "ocr_text": text,
+        "ocr_text": ocr_text,
         "explanation": explanation,
     })
-
 
 # ---------------- Chat ----------------
 class ChatRequest(BaseModel):
     message: str
 
-
 @app.post("/chat")
-async def chat_api(req: ChatRequest):
+async def chat(req: ChatRequest):
     try:
-        reply = model.generate_content(req.message).text.strip()
+        reply = gemini.generate_content(req.message).text.strip()
         return {"reply": reply}
     except Exception as e:
         return {"reply": f"AI error: {e}"}
 
-
+# ---------------- Run ----------------
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=10000)
