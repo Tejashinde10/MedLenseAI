@@ -26,7 +26,7 @@ app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// ✅ Serve uploaded files statically (for viewing images in browser)
+//  Serve uploaded files statically (for viewing images in browser)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Routes
@@ -37,7 +37,7 @@ app.use("/api/chat", chatRoutes);
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("🚀 MedLense AI Backend is running successfully!");
+  res.send(" MedLense AI Backend is running successfully!");
 });
 
 // 404 handler
@@ -53,4 +53,4 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
